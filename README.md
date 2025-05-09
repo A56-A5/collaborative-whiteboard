@@ -2,7 +2,7 @@
 
 A real-time collaborative whiteboard where anyone can draw using pens of different colors, brush sizes, and opacities. Undo/redo supported. Mobile-friendly and super simple.
 
-![Collaborative Canva Demo](demo.png)
+![Collaborative Canva Demo](example.png)
 
 ---
 
