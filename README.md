@@ -29,7 +29,7 @@ A real-time collaborative whiteboard where anyone can draw using pens of differe
 ### Clone the repo
 
 ```bash
-git clone https://github.com/your-username/collaborative-canva.git
+git clone https://github.com/A56-A5/collaborative-whiteboard.git
 cd collaborative-canva
 ```
 
