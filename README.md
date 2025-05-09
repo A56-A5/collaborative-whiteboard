@@ -33,12 +33,12 @@ git clone https://github.com/your-username/collaborative-canva.git
 cd collaborative-canva
 ```
 
-###Install dependencies (for server)
+### Install dependencies (for server)
 ```bash
 npm install
 ```
 
-###Run the server
+### Run the server
 ```bash
 node server.js
 npm start
