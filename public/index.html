@@ -142,11 +142,11 @@
         }
     });
     function getCanvasPos(e) {
-  if (e.touches) {
-    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  }
-  return { x: e.clientX, y: e.clientY };
-}
+      if (e.touches) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    }
 
     canvas.addEventListener("mousedown", startDrawing);
     canvas.addEventListener("mousemove", draw);
