@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collaborative Whiteboard</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; background: #fff; }
+    #tools {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #f0f0f0;
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-start;
+      z-index: 10;
+      border-top: 1px solid #ccc;
+    }
+
+    button, label.color-label {
+      background-color: #e0e0e0;
+      color: #333;
+      border: none;
+      border-radius: 12px;
+      padding: 10px;
+      min-width: 44px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    button:hover, label.color-label:hover {
+      background-color: #d6d6d6;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    button:active, label.color-label:active {
+      background-color: #c2c2c2;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    #colorPicker {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid #999;
+      background-color: #fff;
+    }
+
+  </style>
+
+  <!-- Feather Icons CDN -->
+  <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+  <div id="tools">
+  <button id="undoBtn" title="Undo"><i data-feather="corner-up-left"></i></button>
+  <button id="redoBtn" title="Redo"><i data-feather="corner-up-right"></i></button>
+
+  <label class="color-label" title="Choose Color">
+    <i data-feather="droplet"></i>
+    <input type="color" id="colorPicker" value="#000000">
+  </label>
+
+  <!-- Brush Size Controls -->
+  <button id="sizeDownBtn" title="Decrease Brush Size">-</button>
+  <span id="sizeDisplay">3px</span>
+  <button id="sizeUpBtn" title="Increase Brush Size">+</button>
+
+  <!-- Opacity Controls -->
+  <button id="opacityDownBtn" title="Decrease Opacity">-</button>
+  <span id="opacityDisplay">100%</span>
+  <button id="opacityUpBtn" title="Increase Opacity">+</button>
+</div>
+
+  <canvas id="board"></canvas>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+    const socket = io();
+
+    let brushSize = 3;
+    let opacity = 1.0;
+
+
+    let color = "#000000";
+    let drawing = false;
+    let currentStroke = [];
+
+    const strokes = [];
+    const undone = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      redraw();
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    document.body.addEventListener("touchstart", (e) => {
+      if (e.target === canvas) e.preventDefault();
+    }, { passive: false });
+
+    document.body.addEventListener("touchend", (e) => {
+      if (e.target === canvas) e.preventDefault();
+    }, { passive: false });
+
+    document.body.addEventListener("touchmove", (e) => {
+      if (e.target === canvas) e.preventDefault();
+    }, { passive: false });
+
+    document.getElementById("colorPicker").addEventListener("change", (e) => {
+      color = e.target.value;
+    });
+
+    document.getElementById("undoBtn").addEventListener("click", () => {
+      if (strokes.length > 0) {
+        undone.push(strokes.pop());
+        socket.emit("undo");
+      }
+    });
+    document.getElementById("redoBtn").addEventListener("click", () => {
+        if (undone.length > 0) {
+            const stroke = undone.pop();
+            strokes.push(stroke);
+            socket.emit("redo", stroke);
+            redraw();
+        }
+    });
+    function getCanvasPos(e) {
+  if (e.touches) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+    canvas.addEventListener("mousedown", startDrawing);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", endDrawing);
+
+    canvas.addEventListener("touchstart", startDrawing);
+    canvas.addEventListener("touchmove", draw, { passive: false });
+    canvas.addEventListener("touchend", endDrawing);
+
+    function startDrawing(e) {
+      e.preventDefault();
+      drawing = true;
+      const pos = getCanvasPos(e);
+      currentStroke = [pos];
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const pos = getCanvasPos(e);
+      const prev = currentStroke[currentStroke.length - 1];
+      currentStroke.push(pos);
+      drawLine(prev, pos, color, brushSize, opacity);
+    }
+
+    function endDrawing(e) {
+      if (!drawing) return;
+      drawing = false;
+      const stroke = {
+        points: currentStroke,
+        color,
+        size: brushSize,
+        alpha: opacity
+      };
+      strokes.push(stroke);
+      socket.emit("stroke", stroke);
+      undone.length = 0;
+    }
+
+
+
+    function drawLine(p1, p2, color, size = brushSize, alpha = opacity) {
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = size;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.globalAlpha = 1.0; // Reset after stroke
+    }
+
+
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const stroke of strokes) {
+        for (let i = 1; i < stroke.points.length; i++) {
+          drawLine(stroke.points[i - 1], stroke.points[i], stroke.color, stroke.size, stroke.alpha);
+        }
+      }
+    }
+
+
+    // Socket.io events
+    socket.on("init", (serverStrokes) => {
+      strokes.length = 0;
+      strokes.push(...serverStrokes);
+      redraw();
+    });
+
+    socket.on("stroke", (stroke) => {
+      strokes.push(stroke);
+      for (let i = 1; i < stroke.points.length; i++) {
+        drawLine(stroke.points[i - 1], stroke.points[i], stroke.color, stroke.size, stroke.alpha);
+      }
+    });
+
+    feather.replace();
+    // UI Elements
+    const sizeDisplay = document.getElementById("sizeDisplay");
+    const opacityDisplay = document.getElementById("opacityDisplay");
+
+    document.getElementById("sizeUpBtn").addEventListener("click", () => {
+        if (brushSize < 100) brushSize += 1;
+        sizeDisplay.textContent = `${brushSize}px`;
+    });
+    document.getElementById("sizeDownBtn").addEventListener("click", () => {
+      if (brushSize > 1) brushSize -= 1;
+      sizeDisplay.textContent = `${brushSize}px`;   
+    });
+
+    document.getElementById("opacityUpBtn").addEventListener("click", () => {
+      if (opacity < 1.0) opacity = Math.min(1, opacity + 0.1);
+      updateOpacityDisplay();
+    });
+    document.getElementById("opacityDownBtn").addEventListener("click", () => {
+      if (opacity > 0.1) opacity = Math.max(0.1, opacity - 0.1);
+      updateOpacityDisplay();
+    });
+
+    function updateOpacityDisplay() {
+      opacityDisplay.textContent = `${Math.round(opacity * 100)}%`;
+    }
+
+  </script>
+</body>
+</html>
